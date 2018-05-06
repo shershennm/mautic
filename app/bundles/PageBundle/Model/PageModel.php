@@ -700,9 +700,8 @@ class PageModel extends FormModel
         if ($isUnique) {
             // Add UTM tags entry if a UTM tag exist
             $queryHasUtmTags = false;
-            if (!is_array($query)) {
-                parse_str($query, $query);
-            }
+
+            parse_str($hit->getUrl(), $query);
 
             foreach ($query as $key => $value) {
                 if (strpos($key, 'utm_') !== false) {
