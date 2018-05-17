@@ -697,52 +697,51 @@ class PageModel extends FormModel
         $hit->setUserAgent($request->server->get('HTTP_USER_AGENT'));
         $hit->setRemoteHost($request->server->get('REMOTE_HOST'));
 
-        if ($isUnique) {
-            // Add UTM tags entry if a UTM tag exist
-            $queryHasUtmTags = false;
-            if (!is_array($query)) {
-                parse_str($query, $query);
-            }
+        // Add UTM tags entry if a UTM tag exist
+        $queryHasUtmTags = false;
+        if (!is_array($query)) {
+            parse_str($query, $query);
+        }
 
-            foreach ($query as $key => $value) {
-                if (strpos($key, 'utm_') !== false) {
-                    $queryHasUtmTags = true;
-                    break;
-                }
-            }
-
-            if ($queryHasUtmTags && $lead) {
-                $utmTags = new UtmTag();
-                $utmTags->setDateAdded($hit->getDateHit());
-                $utmTags->setUrl($hit->getUrl());
-                $utmTags->setReferer($hit->getReferer());
-                $utmTags->setQuery($hit->getQuery());
-                $utmTags->setUserAgent($hit->getUserAgent());
-                $utmTags->setRemoteHost($hit->getRemoteHost());
-                $utmTags->setLead($lead);
-
-                if (key_exists('utm_campaign', $query)) {
-                    $utmTags->setUtmCampaign($query['utm_campaign']);
-                }
-                if (key_exists('utm_term', $query)) {
-                    $utmTags->setUtmTerm($query['utm_term']);
-                }
-                if (key_exists('utm_content', $query)) {
-                    $utmTags->setUtmContent($query['utm_content']);
-                }
-                if (key_exists('utm_medium', $query)) {
-                    $utmTags->setUtmMedium($query['utm_medium']);
-                }
-                if (key_exists('utm_source', $query)) {
-                    $utmTags->setUtmSource($query['utm_source']);
-                }
-
-                $repo = $this->em->getRepository('MauticLeadBundle:UtmTag');
-                $repo->saveEntity($utmTags);
-
-                $this->leadModel->setUtmTags($lead, $utmTags);
+        foreach ($query as $key => $value) {
+            if (strpos($key, 'utm_') !== false) {
+                $queryHasUtmTags = true;
+                break;
             }
         }
+
+        if ($queryHasUtmTags && $lead) {
+            $utmTags = new UtmTag();
+            $utmTags->setDateAdded($hit->getDateHit());
+            $utmTags->setUrl($hit->getUrl());
+            $utmTags->setReferer($hit->getReferer());
+            $utmTags->setQuery($hit->getQuery());
+            $utmTags->setUserAgent($hit->getUserAgent());
+            $utmTags->setRemoteHost($hit->getRemoteHost());
+            $utmTags->setLead($lead);
+
+            if (key_exists('utm_campaign', $query)) {
+                $utmTags->setUtmCampaign($query['utm_campaign']);
+            }
+            if (key_exists('utm_term', $query)) {
+                $utmTags->setUtmTerm($query['utm_term']);
+            }
+            if (key_exists('utm_content', $query)) {
+                $utmTags->setUtmContent($query['utm_content']);
+            }
+            if (key_exists('utm_medium', $query)) {
+                $utmTags->setUtmMedium($query['utm_medium']);
+            }
+            if (key_exists('utm_source', $query)) {
+                $utmTags->setUtmSource($query['utm_source']);
+            }
+
+            $repo = $this->em->getRepository('MauticLeadBundle:UtmTag');
+            $repo->saveEntity($utmTags);
+
+            $this->leadModel->setUtmTags($lead, $utmTags);
+        }
+
         //get a list of the languages the user prefers
         $browserLanguages = $request->server->get('HTTP_ACCEPT_LANGUAGE');
         if (!empty($browserLanguages)) {
