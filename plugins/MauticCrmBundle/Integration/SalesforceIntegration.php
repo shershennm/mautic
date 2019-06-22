@@ -11,6 +11,7 @@
 
 namespace MauticPlugin\MauticCrmBundle\Integration;
 
+use Mautic\CoreBundle\Helper\InputHelper;
 use Mautic\LeadBundle\Entity\Company;
 use Mautic\LeadBundle\Entity\DoNotContact;
 use Mautic\LeadBundle\Entity\Lead;
@@ -22,6 +23,7 @@ use MauticPlugin\MauticCrmBundle\Api\SalesforceApi;
 use MauticPlugin\MauticCrmBundle\Integration\Salesforce\CampaignMember\Fetcher;
 use MauticPlugin\MauticCrmBundle\Integration\Salesforce\CampaignMember\Organizer;
 use MauticPlugin\MauticCrmBundle\Integration\Salesforce\Exception\NoObjectsToFetchException;
+use MauticPlugin\MauticCrmBundle\Integration\Salesforce\Helper\StateValidationHelper;
 use MauticPlugin\MauticCrmBundle\Integration\Salesforce\Object\CampaignMember;
 use MauticPlugin\MauticCrmBundle\Integration\Salesforce\ResultsPaginator;
 use Symfony\Component\Console\Helper\ProgressBar;
@@ -433,6 +435,12 @@ class SalesforceIntegration extends CrmAbstractIntegration
                     $entity = false;
                     switch ($object) {
                         case 'Contact':
+                            if (isset($dataObject['Email__Contact'])) {
+                                // Sanitize email to make sure we match it
+                                // correctly against mautic emails
+                                $dataObject['Email__Contact'] = InputHelper::email($dataObject['Email__Contact']);
+                            }
+
                             //get company from account id and assign company name
                             if (isset($dataObject['AccountId__'.$object])) {
                                 $companyName = $this->getCompanyName($dataObject['AccountId__'.$object], 'Name');
@@ -450,7 +458,14 @@ class SalesforceIntegration extends CrmAbstractIntegration
                             } elseif (!empty($dataObject['Owner__Contact']['Email'])) {
                                 $dataObject['owner_email'] = $dataObject['Owner__Contact']['Email'];
                             }
-                            $entity                = $this->getMauticLead($dataObject, true, null, null, $object, $params);
+
+                            if (isset($dataObject['Email__Lead'])) {
+                                // Sanitize email to make sure we match it
+                                // correctly against mautic_leads emails
+                                $dataObject['Email__Lead'] = InputHelper::email($dataObject['Email__Lead']);
+                            }
+
+                            $entity                = $this->getMauticLead($dataObject, true, null, null, $object);
                             $mauticObjectReference = 'lead';
                             $detachClass           = Lead::class;
 
@@ -1528,7 +1543,7 @@ class SalesforceIntegration extends CrmAbstractIntegration
                         false,
                         0,
                         0,
-                        "'".$campaignMembers[$memberId]."'"
+                        [$campaignMembers[$memberId]]
                     );
                     if ($existingCampaignMember) {
                         foreach ($existingCampaignMember as $member) {
@@ -1827,6 +1842,8 @@ class SalesforceIntegration extends CrmAbstractIntegration
                     }
                 }
             }
+
+            $this->amendLeadDataBeforePush($body);
 
             if (!empty($body)) {
                 $url = '/services/data/v38.0/sobjects/'.$object;
@@ -2530,9 +2547,7 @@ class SalesforceIntegration extends CrmAbstractIntegration
                 'update' => !empty($fieldsToUpdateInSf) ? array_intersect_key($fieldsToCreate, $fieldsToUpdateInSf) : [],
                 'create' => $fieldsToCreate,
             ];
-            $entity['primaryCompany'] = $company->getFields();
-
-            $entity['primaryCompany'] = $this->leadModel->flattenFields($entity['primaryCompany']);
+            $entity['primaryCompany'] = $company->getProfileFields();
 
             // Create an update and
             $mappedData[$object]['create'] = $this->populateCompanyData(
@@ -2557,6 +2572,14 @@ class SalesforceIntegration extends CrmAbstractIntegration
         }
 
         return $mappedData;
+    }
+
+    /**
+     * @param $mappedData
+     */
+    public function amendLeadDataBeforePush(&$mappedData)
+    {
+        $mappedData = StateValidationHelper::validate($mappedData);
     }
 
     /**
@@ -2715,6 +2738,10 @@ class SalesforceIntegration extends CrmAbstractIntegration
         list($fromDate, $toDate) = $this->getSyncTimeframeDates($params);
         $config                  = $this->mergeConfigToFeatureSettings($params);
         $integrationEntityRepo   = $this->getIntegrationEntityRepository();
+
+        if (!isset($config['companyFields'])) {
+            return [0, 0, 0, 0];
+        }
 
         $totalUpdated = 0;
         $totalCreated = 0;
